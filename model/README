@@ -1,0 +1,36 @@
+# Train model baseline
+
+Sử dụng dataset NAB AWSCloudwatch Dataset
+
+## Tải NAB
+
+```
+git clone https://github.com/numenta/NAB.git
+# Data cần: NAB/data/realAWSCloudwatch/*.csv
+# Label cần: NAB/labels/combined_windows.json
+```
+## Tạo DB riêng cho NAB
+Trong mlops/db, tạo file SQL:
+```
+-- db/add_nab_table.sql
+CREATE TABLE metrics_labeled (
+    id BIGSERIAL,
+    ts TIMESTAMPTZ NOT NULL,
+    source_file TEXT NOT NULL,
+    value DOUBLE PRECISION NOT NULL,
+    is_anomaly BOOLEAN NOT NULL DEFAULT false
+);
+CREATE INDEX idx_metrics_labeled_file ON metrics_labeled (source_file, ts);
+```
+
+Chạy bash tạo database trong Docker Container (timescaledb)
+```
+docker exec -i timescaledb psql -U mlops -d metrics_db < db/add_nab_table.sql
+```
+## Script load NAB vào database
+Thư viện cần tải thêm: ```pandas, psycopg2-binary```
+```
+conda install pandas psycopg2-binary
+```
+Chạy:
+```python scripts/load_nab_to_db.py```
