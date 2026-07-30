@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.log
+# Thư mục map volume của Kafka/Docker (nếu có)
+data/
+model/NAB/
+.vscode/
