@@ -1,19 +1,24 @@
 # consumer/consumer.py
+import os
+from dotenv import load_dotenv
 import json
 import psycopg2
 from confluent_kafka import Consumer
 from datetime import datetime, timezone
 
-KAFKA_BOOTSTRAP = "123.30.48.173:9092"
-TOPIC = "metrics-raw"
-GROUP_ID = "metrics-consumer-group"
+# tìm vầ nạp các biến từ .env vào môi trường
+load_dotenv()
+
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP")
+TOPIC = os.getenv("TOPIC")
+GROUP_ID = os.getenv("GROUP_ID")
 
 DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "metrics_db",
-    "user": "mlops",
-    "password": "mlops123",
+    "host": os.getenv("POSTGRES_HOST"),
+    "port": int(os.getenv("POSTGRES_PORT")),
+    "dbname": os.getenv("POSTGRES_DB"),
+    "user": os.getenv("POSTGRES_USER"),
+    "password": os.getenv("POSTGRES_PASSWORD"),
 }
 
 # rule ngưỡng cứng - sẽ thay bằng model ở giai đoạn sau
