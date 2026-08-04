@@ -13,6 +13,7 @@ Hiển thị thông tin của Image vừa tạo
 docker images anomaly-inference:v1
 ```
 # Chạy thử container
+syntax ```-p <port_local>:<port_container>```
 ```
 docker run -d --name inference-test -p 8000:8000 anomaly-inference:v1
 ```
