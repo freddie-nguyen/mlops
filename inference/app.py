@@ -7,7 +7,7 @@ from collections import defaultdict, deque
 
 app = FastAPI(title='Anomaly Detection Inference Service')
 
-MODEL_DIR = os.getenv('MODEL_DIR', 'model/models')
+MODEL_DIR = os.getenv('MODEL_DIR', 'models')
 WINDOW = 12
 NET_FIELDS = [
     "net_bytes_recv_diff",
