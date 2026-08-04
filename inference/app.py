@@ -80,7 +80,25 @@ class PredictionResponse(BaseModel):
     anomalous_count: int
     severity: str
 
-def predict_univariate(group: str, host_id: str, value):
+def predict_univariate(group: str, host_id: str, value: float) -> GroupResult:
+    """
+    Biến hist lưu giá trị:
+    ```
+    rolling_hist:
+    {
+        ("server-1", "cpu"): deque([15.2, 16.5, 14.8, 18.2, 11.4], maxlen=12), <- đây là hist
+        ("server-1", "mem"): deque([80.0, 80.1, 80.5], maxlen=12),
+        ("server-2", "cpu"): deque([5.0, 5.2], maxlen=12)
+    }
+    ```
+    Args:
+        group (str): group tương ứng với mô hình (cpu, disk, mem)
+        host_id (str): current value (that is appended at the end of the deque)
+        value (float):
+        
+    Returns:
+
+    """
     model = models.get(group)
 
     hist = rolling_history[(host_id, group)]
@@ -95,6 +113,7 @@ def predict_univariate(group: str, host_id: str, value):
     score = float(model.decision_function(X)[0])
 
     return GroupResult(group=group, is_anomaly=bool(pred == -1), anomaly_score=score)
+
 
 def predict_net(host_id, raw_values: dict):
     """raw_values: {"net_bytes_recv": ..., "net_bytes_sent": ..., "net_err_in": ..., "net_err_out": ...}"""
@@ -160,7 +179,7 @@ def predict(payload: MetricsSnapshot):
         }
     ))
 
-    anomalous_count = sum(1 for r in results if r.is_anomaly)
+    anomalous_count = sum(1 for r in results if r.is_anomaly == True)
 
     if anomalous_count == 0:
         severity = "normal"
@@ -179,4 +198,5 @@ def predict(payload: MetricsSnapshot):
 
 if __name__ == "__main__":
     import uvicorn
+    # chạy web server bằng uvicorn, truyền app FastAPI ở cổng 8000
     uvicorn.run(app, host="0.0.0.0", port=8000)
