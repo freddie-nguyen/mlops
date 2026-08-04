@@ -32,14 +32,5 @@ Thư viện cần tải thêm: ```pandas, psycopg2-binary```
 ```
 conda install pandas psycopg2-binary
 ```
-Chạy phần train trong:
-```train_nab.py```
-
-Verify:
-```
-SELECT count(*) FROM metrics_labeled;
-SELECT count(*) FROM metrics_labeled WHERE is_anomaly = true;
-SELECT DISTINCT source_file FROM metrics_labeled;
-```
-Dataframe cho training
-![alt text](image.png)
+Chạy:
+```python scripts/load_nab_to_db.py```
