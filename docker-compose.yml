@@ -4,18 +4,26 @@ services:
     container_name: kafka
     ports:
       - "9092:9092"
+      - "9094:9094"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,INTERNAL://0.0.0.0:9094,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://123.30.48.173:9092,INTERNAL://kafka:9094
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
       CLUSTER_ID: ${CLUSTER_ID}
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     volumes:
       - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]    # lệnh dùng để kiểm tra, nó thử kết nối với kafka qua cổng 9092, nếu không kết nối được thì thoát với mã lỗi "exit 1"
+      interval: 10s       # thực hiện kiểm tra lặp lại định kỳ 10s
+      timeout: 10s        # nếu một lần kiểm tra chạy lâu hơn 10s thì timeout, tính là bị thất bạp
+      retries: 10         # thất bại 10 lần liên tiếp thì docker đánh dấu trạng thái container này là unhealthy
+      start_period: 20s
 
   timescaledb:
     image: timescale/timescaledb:latest-pg16
@@ -29,7 +37,12 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
-
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -39,6 +52,26 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
     volumes:
       - grafana_data:/var/lib/grafana
+
+  consumer:
+    build: ./consumer   # hoặc image: nếu dùng CI/CD
+    container_name: consumer-test
+    environment:
+      - PYTHONUNBUFFERED=1
+      - POSTGRES_HOST=timescaledb        # tên service, không phải localhost
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - KAFKA_BOOTSTRAP=kafka:9094       # tên service, không phải localhost/IP public
+      - TOPIC=metrics-raw
+      - GROUP_ID=metrics-consumer-group
+      - INFERENCE_URL=http://inference:8000/predict
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
 volumes:
   kafka_data:

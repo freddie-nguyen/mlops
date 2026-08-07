@@ -2,12 +2,12 @@ import json
 import psycopg2
 import requests
 import os
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from confluent_kafka import Consumer
 from datetime import datetime, timezone
 from collections import defaultdict
 
-load_dotenv()
+# load_dotenv()
 
 KAFKA_BOOTSTRAP = os.getenv('KAFKA_BOOTSTRAP')
 TOPIC = os.getenv('TOPIC')
@@ -16,7 +16,7 @@ INFERENCE_URL = os.getenv('INFERENCE_URL')
 
 DB_CONFIG = {
     'host': os.getenv('POSTGRES_HOST'),
-    'port': int(os.getenv('POSTGRES_PORT')),
+    'port': int(os.getenv('POSTGRES_PORT', '5432')),
     'dbname': os.getenv('POSTGRES_DB'),
     'user': os.getenv('POSTGRES_USER'),
     'password': os.getenv('POSTGRES_PASSWORD'),
@@ -166,6 +166,18 @@ def save_alert(cur, ts, host_id, result):
     )
 
 def main():
+    # ==========================================================
+    # test env
+    REQUIRED_ENV_VARS = [
+        'KAFKA_BOOTSTRAP', 'TOPIC', 'GROUP_ID', 'INFERENCE_URL',
+        'POSTGRES_HOST', 'POSTGRES_PORT', 'POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD',
+    ]
+
+    missing = [v for v in REQUIRED_ENV_VARS if not os.getenv(v)]
+    if missing:
+        raise SystemExit(f"Missing required environment variables: {missing}")
+    # ==========================================================
+
     consumer = Consumer({
         'bootstrap.servers': KAFKA_BOOTSTRAP,
         'group.id': GROUP_ID,
