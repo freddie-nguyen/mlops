@@ -6,3 +6,4 @@ data/
 model/NAB/
 .vscode/
 mlartifacts/
+mlflow.b
