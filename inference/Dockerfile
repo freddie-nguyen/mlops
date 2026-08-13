@@ -16,10 +16,10 @@ COPY --from=builder /install /usr/local
 
 COPY app.py .
 
-COPY models/ ./models/
-
-RUN useradd -m appuser
+RUN mkdir -p /app/model_cache && useradd -m appuser && chown -R appuser /app
 USER appuser
+
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
