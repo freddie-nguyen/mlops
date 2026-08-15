@@ -100,16 +100,23 @@ services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
     container_name: mlflow
+    user: root
     ports:
       - "5000:5000"
     volumes:
       - mlflow_data:/mlflow
+    environment:
+      - MLFLOW_SERVER_ALLOWED_HOSTS=123.30.48.173,localhost,127.0.0.1
+      - MLFLOW_SERVER_CORS_ALLOWED_ORIGINS=http://123.30.48.173:5000
     command: >
       mlflow server
       --host 0.0.0.0
       --port 5000
       --backend-store-uri sqlite:////mlflow/mlflow.db
-      --default-artifact-root /mlflow/artifacts
+      --default-artifact-root mlflow-artifacts:/
+      --artifacts-destination /mlflow/artifacts
+      --allowed-hosts="*"
+      --serve-artifacts
     restart: unless-stopped
 
 volumes:
