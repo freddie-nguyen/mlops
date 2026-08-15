@@ -118,7 +118,7 @@ Trả về:
 - Inference service hiện dùng mô hình đã được huấn luyện sẵn và lưu trong thư mục [model/models](model/models).
 - Hệ thống đang ở trạng thái tích hợp cơ bản giữa streaming data, lưu trữ và dự đoán bất thường, chưa đi tới toàn bộ vòng đời MLOps tự động hoàn chỉnh.
 
-# Mlflow, Labeling
+# Tạo Labeling data
 
 ## Install Python pip manager
 
@@ -306,4 +306,159 @@ LEFT JOIN metrics m ON m.host_id = le.host_id
   AND m.ts BETWEEN le.start_ts AND le.end_ts
 GROUP BY le.id, le.scenario, le.label, le.start_ts, le.end_ts
 ORDER BY le.start_ts;
+```
+# mlflow
+
+## tạo docker container mlflow (server side)
+
+```
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://123.30.48.173:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: timescaledb
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: mlops
+      POSTGRES_PASSWORD: mlops123
+      POSTGRES_DB: metrics_db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+    restart: unless-stopped
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      - kafka
+    restart: unless-stopped
+
+  inference:
+    image: freddienguyen/anomaly-inference:latest
+    container_name: inference
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - inference_cache:/app/model_cache
+    depends_on:
+      - mlflow
+
+    restart: unless-stopped
+
+  consumer:
+    image: freddienguyen/anomaly-consumer:latest
+    container_name: consumer
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      TOPIC: metrics-raw
+      GROUP_ID: metrics-consumer-group
+      INFERENCE_URL: http://inference:8000/predict
+      POSTGRES_HOST: timescaledb
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: metrics_db
+      POSTGRES_USER: mlops
+      POSTGRES_PASSWORD: mlops123
+    depends_on:
+      kafka:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+    restart: unless-stopped
+
+volumes:
+  kafka_data:
+  db_data:
+  mlflow_data:
+  inference_cache:
+```
+
+## verify
+run `http://123.30.48.173:5000` → see mlflow ui
+
+## tạo script train trên server
+
+run this following:
+```
+mkdir -p ~/mlops-kafka/train
+vim ~/mlops-kafka/train/train_cpu.py
+```
+
+`train_cpu.py`, `train_net.py`, `train_mem.py`, `train_disk.py`
+
+cài đặt thư viện trên server
+```
+pip3 install mlflow scikit-learn pandas psycopg2-binary --break-system-packages
+```
+
+run those:
+```
+cd ~/mlops-kafka/
+python3 train/train_*.py
+```
+
+## promote model
+
+```
+python3 scripts/promote_model.py
 ```
