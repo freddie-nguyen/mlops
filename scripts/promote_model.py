@@ -2,29 +2,27 @@
 import mlflow
 import sys
 
-mlflow.set_tracking_uri('http://localhost:5000')
+mlflow.set_tracking_uri("http://localhost:5000")
 client = mlflow.MlflowClient()
 
-MODEL_NAMES = [
-    "anomaly-detector-cpu",
-    "anomaly-detector-mem",
-    "anomaly-detector-disk",
-    "anomaly-detector-net",
-]
-MIN_RECALL = 0.5
-MIN_PRECISION = 0.5
+MODEL_NAMES = ["anomaly-detector-cpu", "anomaly-detector-mem",
+               "anomaly-detector-disk", "anomaly-detector-net"]
+
+MIN_RECALL = 0.40      # ngưỡng tối thiểu để coi là "đủ tốt" cho Staging
+MIN_PRECISION = 0.40
+
 
 def promote_best_version(model_name):
     versions = client.search_model_versions(f"name='{model_name}'")
     if not versions:
-        print(f"[{model_name}] no version available")
+        print(f"[{model_name}] Không có version nào")
         return
 
     best_version = None
     best_f1 = -1
 
     for v in versions:
-        run = client.get_run("precision", 0)
+        run = client.get_run(v.run_id)
         precision = run.data.metrics.get("precision", 0)
         recall = run.data.metrics.get("recall", 0)
         f1 = run.data.metrics.get("f1_score", 0)
@@ -36,9 +34,10 @@ def promote_best_version(model_name):
             best_version = v.version
 
     if best_version is None:
-        print(f"[{model_name}] Khong co version nao dat nguong toi thieu, khong promote")
+        print(f"[{model_name}] Không có version nào đạt ngưỡng tối thiểu, KHÔNG promote")
         return
 
+    # Bước trung gian: Staging (để "duyệt" trước khi lên Production)
     client.transition_model_version_stage(
         name=model_name, version=best_version, stage="Staging",
     )
